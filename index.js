@@ -36,13 +36,16 @@ async function run() {
     await client.connect();
     const ServiceCollection = client.db("Parses_go").collection("Parse");
     const allUsers = client.db("Parses_go").collection("all-Collections");
-    // app.post("/login", async (req, res) => {
-    //   const user = req.body;
-    //   const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-    //     expiresIn: "1d",
-    //   });
-    //   res.send({ accessToken });
-    // });
+    const reviewsCount = client.db("Parses_go").collection("all-ReviewsCount");
+    const orderCount = client.db("Parses_go").collection("all-orderCount");
+
+   // reviewsCount
+   app.post("/review", async (req, res) => {
+    const newServices = req.body;
+    const result = await reviewsCount.insertOne(newServices);
+    res.send(result);
+  });
+
 
     //    get data
     app.get("/pareses", async (req, res) => {
@@ -52,25 +55,42 @@ async function run() {
       res.send(services);
     });
 
+// post data product
+app.post("/pareses", async (req, res) => {
+  const newServices = req.body;
+  const result = await ServiceCollection.insertOne(newServices);
+  res.send(result);
+});
+// post data order
+app.post("/order", async (req, res) => {
+  const newServices = req.body;
+  const result = await orderCount.insertOne(newServices);
+  res.send(result);
+});
+// get data from orderCount
+app.get("/order", verifyJWT, async (req, res) => {
+  const decodedEmail = req.decoded.email;
+  const email = req.query.email;
+  if (email === decodedEmail) {
+    console.log(email);
+    const query = { email: email };
+    console.log(query);
+    const cursor = orderCount.find(query);
+    const productItems = await cursor.toArray();
+    console.log(productItems);
+    res.send(productItems);
+  } else {
+    res.status(403).send({ message: "Access denied! Forbidden access" });
+  }
+});
+
     app.get("/purchaseProduct/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
       const result = await ServiceCollection.findOne(query);
       res.send(result);
     });
-    // post data
-    app.post("/pareses", async (req, res) => {
-      const newServices = req.body;
-      const result = await ServiceCollection.insertOne(newServices);
-      res.send(result);
-    });
-    // delete
-    // app.get("/pareses/:id", async (req, res) => {
-    //   const id = req.params.id;
-    //   const query = { _id: id };
-    //   const result = await ServiceCollection.deleteOne(query);
-    //   res.send(result);
-    // });
+    
 
     app.delete("/pareses/:id", async (req, res) => {
       const id = req.params.id;

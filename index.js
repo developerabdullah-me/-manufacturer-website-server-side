@@ -83,6 +83,15 @@ app.get("/order", verifyJWT, async (req, res) => {
     res.status(403).send({ message: "Access denied! Forbidden access" });
   }
 });
+// Delta 
+app.delete("/order/:id", async (req, res) => {
+  const id = req.params.id;
+  const query = { _id: ObjectId(id) };
+  const result = await orderCount.deleteOne(query);
+  res.send(result);
+});
+
+
 
     app.get("/purchaseProduct/:id", async (req, res) => {
       const id = req.params.id;
@@ -216,6 +225,25 @@ app.get("/order", verifyJWT, async (req, res) => {
       const result = await allUsers.find(query).toArray();
       res.send(result);
     });
+
+
+
+    // orderPayment
+    app.get('/orderPayment/:id', async (req, res) => {
+      const id = req.params.id
+      console.log(id);
+      const query = { _id: ObjectId(id) }
+      console.log(query);
+      const result = await orderCount.findOne(query)
+      console.log(result);
+      res.send(result)
+  })
+
+
+
+
+
+
   } finally {
   }
 }

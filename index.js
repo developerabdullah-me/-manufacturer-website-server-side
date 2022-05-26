@@ -1,8 +1,12 @@
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
+
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
 const app = express();
 const port = process.env.PORT || 5000;
 // middelware
@@ -38,14 +42,20 @@ async function run() {
     const allUsers = client.db("Parses_go").collection("all-Collections");
     const reviewsCount = client.db("Parses_go").collection("all-ReviewsCount");
     const orderCount = client.db("Parses_go").collection("all-orderCount");
+    const paymentsCollection = client.db("Parses_go").collection("payments");
 
-   // reviewsCount
-   app.post("/review", async (req, res) => {
-    const newServices = req.body;
-    const result = await reviewsCount.insertOne(newServices);
-    res.send(result);
-  });
-
+    // reviewsCount
+    app.post("/review", async (req, res) => {
+      const newServices = req.body;
+      const result = await reviewsCount.insertOne(newServices);
+      res.send(result);
+    });
+    app.get("/review", async (req, res) => {
+      const query = {};
+      const cursor = reviewsCount.find(query);
+      const services = await cursor.toArray();
+      res.send(services);
+    });
 
     //    get data
     app.get("/pareses", async (req, res) => {
@@ -55,43 +65,41 @@ async function run() {
       res.send(services);
     });
 
-// post data product
-app.post("/pareses", async (req, res) => {
-  const newServices = req.body;
-  const result = await ServiceCollection.insertOne(newServices);
-  res.send(result);
-});
-// post data order
-app.post("/order", async (req, res) => {
-  const newServices = req.body;
-  const result = await orderCount.insertOne(newServices);
-  res.send(result);
-});
-// get data from orderCount
-app.get("/order", verifyJWT, async (req, res) => {
-  const decodedEmail = req.decoded.email;
-  const email = req.query.email;
-  if (email === decodedEmail) {
-    console.log(email);
-    const query = { email: email };
-    console.log(query);
-    const cursor = orderCount.find(query);
-    const productItems = await cursor.toArray();
-    console.log(productItems);
-    res.send(productItems);
-  } else {
-    res.status(403).send({ message: "Access denied! Forbidden access" });
-  }
-});
-// Delta 
-app.delete("/order/:id", async (req, res) => {
-  const id = req.params.id;
-  const query = { _id: ObjectId(id) };
-  const result = await orderCount.deleteOne(query);
-  res.send(result);
-});
-
-
+    // post data product
+    app.post("/pareses", async (req, res) => {
+      const newServices = req.body;
+      const result = await ServiceCollection.insertOne(newServices);
+      res.send(result);
+    });
+    // post data order
+    app.post("/order", async (req, res) => {
+      const newServices = req.body;
+      const result = await orderCount.insertOne(newServices);
+      res.send(result);
+    });
+    // get data from orderCount
+    app.get("/order", verifyJWT, async (req, res) => {
+      const decodedEmail = req.decoded.email;
+      const email = req.query.email;
+      if (email === decodedEmail) {
+        console.log(email);
+        const query = { email: email };
+        console.log(query);
+        const cursor = orderCount.find(query);
+        const productItems = await cursor.toArray();
+        console.log(productItems);
+        res.send(productItems);
+      } else {
+        res.status(403).send({ message: "Access denied! Forbidden access" });
+      }
+    });
+    // Delta order
+    app.delete("/order/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const result = await orderCount.deleteOne(query);
+      res.send(result);
+    });
 
     app.get("/purchaseProduct/:id", async (req, res) => {
       const id = req.params.id;
@@ -99,7 +107,6 @@ app.delete("/order/:id", async (req, res) => {
       const result = await ServiceCollection.findOne(query);
       res.send(result);
     });
-    
 
     app.delete("/pareses/:id", async (req, res) => {
       const id = req.params.id;
@@ -226,24 +233,52 @@ app.delete("/order/:id", async (req, res) => {
       res.send(result);
     });
 
-
-
     // orderPayment
-    app.get('/orderPayment/:id', async (req, res) => {
-      const id = req.params.id
+    app.get("/orderPayment/:id", async (req, res) => {
+      const id = req.params.id;
       console.log(id);
-      const query = { _id: ObjectId(id) }
+      const query = { _id: ObjectId(id) };
       console.log(query);
-      const result = await orderCount.findOne(query)
+      const result = await orderCount.findOne(query);
       console.log(result);
-      res.send(result)
-  })
+      res.send(result);
+    });
 
+    app.get("/payment/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const booking = await orderCount.findOne(query);
+      res.send(booking);
+    });
 
+    app.post("/create-payment-intent", verifyJWT, async (req, res) => {
+      const parts = req.body;
+      console.log(parts);
+      const price = parts.price;
+      console.log(price);
+      const amount = parseInt(price) * 100;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+      res.send({ clientSecret: paymentIntent.client_secret });
+    });
 
-
-
-
+    app.patch("/myaddedorders/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const payment = req.body;
+      const filter = { _id: ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          paid: true,
+          transactionId: payment.transactionId,
+        },
+      };
+      const result = await paymentsCollection.insertOne(payment);
+      const updatedOrders = await orderCount.updateOne(filter, updatedDoc);
+      res.send(updatedOrders);
+    });
   } finally {
   }
 }

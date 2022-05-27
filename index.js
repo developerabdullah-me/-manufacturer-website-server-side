@@ -43,6 +43,7 @@ async function run() {
     const reviewsCount = client.db("Parses_go").collection("all-ReviewsCount");
     const orderCount = client.db("Parses_go").collection("all-orderCount");
     const paymentsCollection = client.db("Parses_go").collection("payments");
+    const myProfileCount = client.db("Parses_go").collection("profile");
 
     // reviewsCount
     app.post("/review", async (req, res) => {
@@ -65,6 +66,27 @@ async function run() {
       res.send(services);
     });
 
+    // post data myProfile
+    app.post("/myprofiles", async (req, res) => {
+      const newServices = req.body;
+      const result = await myProfileCount.insertOne(newServices);
+      res.send(result);
+    });
+    app.get("/myprofiles", verifyJWT, async (req, res) => {
+      const decodedEmail = req.decoded.email;
+      const email = req.query.email;
+      if (email === decodedEmail) {
+        console.log(email);
+        const query = { email: email };
+        console.log(query);
+        const cursor = myProfileCount.find(query);
+        const productItems = await cursor.toArray();
+        console.log(productItems);
+        res.send(productItems);
+      } else {
+        res.status(403).send({ message: "Access denied! Forbidden access" });
+      }
+    });
     // post data product
     app.post("/pareses", async (req, res) => {
       const newServices = req.body;
